@@ -1,0 +1,595 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  CLIENT
+  VENDOR
+  SUPPORT
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum OrganizationType {
+  CLIENT
+  VENDOR
+  PLATFORM
+}
+
+enum OrganizationMemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum AuctionType {
+  FORWARD
+  REVERSE
+  RANK
+}
+
+enum AuctionStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  PUBLISHED
+  UPCOMING
+  LIVE
+  EXTENDED
+  CLOSED
+  RESULT_DECLARED
+  COMPLETED
+  REJECTED
+  CANCELLED
+  WITHDRAWN
+}
+
+enum AuctionVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum ParticipationType {
+  OPEN
+  RESTRICTED
+}
+
+enum BidDirection {
+  UPWARD
+  DOWNWARD
+  RANK_BASED
+}
+
+enum ItemStatus {
+  ACTIVE
+  INACTIVE
+  WITHDRAWN
+}
+
+enum DocumentType {
+  TENDER
+  TECHNICAL_SPECIFICATION
+  COMMERCIAL_TERMS
+  ELIGIBILITY
+  EMD
+  CLARIFICATION
+  RESULT
+  OTHER
+}
+
+enum RequirementState {
+  REQUIRED
+  OPTIONAL
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum FileAccess {
+  PUBLIC
+  PRIVATE
+  INTERNAL
+}
+
+enum ParticipationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
+enum EligibilityStatus {
+  PENDING
+  ELIGIBLE
+  INELIGIBLE
+}
+
+enum EmdStatus {
+  NOT_REQUIRED
+  PENDING
+  SUBMITTED
+  VERIFIED
+  REJECTED
+  REFUNDED
+}
+
+enum BidStatus {
+  SUBMITTED
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum ResultStatus {
+  PENDING
+  UNDER_REVIEW
+  DECLARED
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PaymentRecordType {
+  EMD
+  SECURITY
+  AUCTION
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  INITIATED
+  RECEIVED
+  VERIFIED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum NotificationType {
+  SYSTEM
+  AUCTION
+  DOCUMENT
+  PAYMENT
+  SUPPORT
+}
+
+enum AuditEntityType {
+  USER
+  ORGANIZATION
+  AUCTION
+  AUCTION_ITEM
+  AUCTION_DOCUMENT
+  AUCTION_MEDIA
+  VENDOR_PARTICIPATION
+  EMD_RECORD
+  BID
+  AUCTION_RESULT
+  PAYMENT_RECORD
+  NOTIFICATION
+  SYSTEM
+}
+
+model User {
+  id               String             @id @default(cuid())
+  name             String
+  email            String             @unique
+  phone            String?
+  authReference    String?            @unique
+  passwordHash     String?
+  passwordChangedAt DateTime?
+  lastLoginAt      DateTime?
+  role             UserRole
+  status           UserStatus         @default(ACTIVE)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  organizations    UserOrganization[]
+  createdAuctions  Auction[]          @relation("AuctionCreatedBy")
+  updatedAuctions  Auction[]          @relation("AuctionUpdatedBy")
+  approvedAuctions Auction[]          @relation("AuctionApprovedBy")
+  uploadedDocs     AuctionDocument[]  @relation("DocumentUploadedBy")
+  uploadedMedia    AuctionMedia[]     @relation("MediaUploadedBy")
+  reviewedVendors  VendorParticipation[] @relation("ParticipationReviewedBy")
+  emdReviews       EmdRecord[]        @relation("EmdReviewedBy")
+  declaredResults  AuctionResult[]    @relation("ResultDeclaredBy")
+  notifications    Notification[]
+  auditLogs        AuditLog[]         @relation("AuditActor")
+
+  @@index([role])
+  @@index([status])
+}
+
+model Organization {
+  id                     String                 @id @default(cuid())
+  legalName              String
+  displayName            String?
+  type                   OrganizationType
+  registrationReference  String?
+  taxReference           String?
+  email                  String?
+  phone                  String?
+  website                String?
+  addressLine1           String?
+  addressLine2           String?
+  city                   String?
+  state                  String?
+  postalCode             String?
+  country                String?
+  isActive               Boolean                @default(true)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  users                  UserOrganization[]
+  clientAuctions         Auction[]              @relation("ClientOrganizationAuctions")
+  vendorParticipations   VendorParticipation[]  @relation("VendorOrganizationParticipations")
+  emdRecords             EmdRecord[]
+  bids                   Bid[]
+  winningResults         AuctionResult[]        @relation("WinningVendorResults")
+  paymentRecords         PaymentRecord[]
+
+  @@index([type])
+  @@index([isActive])
+  @@index([legalName])
+}
+
+model UserOrganization {
+  id             String                 @id @default(cuid())
+  userId         String
+  organizationId String
+  role           OrganizationMemberRole @default(MEMBER)
+  isPrimary      Boolean                @default(false)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([role])
+}
+
+model Auction {
+  id                         String                @id @default(cuid())
+  auctionNumber              String                @unique
+  tenderNumber               String?
+  title                      String
+  category                   String
+  description                String?
+  termsAndConditions         String?
+  vendorRequirements         String?
+  type                       AuctionType
+  status                     AuctionStatus         @default(DRAFT)
+  visibility                 AuctionVisibility     @default(PRIVATE)
+  participationType          ParticipationType     @default(RESTRICTED)
+  bidDirection               BidDirection
+  clientOrganizationId       String
+  location                   String?
+  timezone                   String
+  scheduledStartAt           DateTime
+  scheduledEndAt             DateTime
+  participationDeadlineAt    DateTime?
+  currency                   String
+  startingPrice              Decimal?              @db.Decimal(18, 2)
+  bidStepAmount              Decimal?              @db.Decimal(18, 2)
+  minimumBidValue            Decimal?              @db.Decimal(18, 2)
+  maximumBidValue            Decimal?              @db.Decimal(18, 2)
+  quantity                   Decimal?              @db.Decimal(18, 3)
+  unit                       String?
+  autoExtensionEnabled       Boolean               @default(false)
+  extensionDurationMinutes   Int?
+  extensionTriggerMinutes    Int?
+  maximumExtensions          Int?
+  emdRequired                Boolean               @default(false)
+  emdAmount                  Decimal?              @db.Decimal(18, 2)
+  emdCurrency                String?
+  securityDepositRequirement String?
+  createdById                String
+  updatedById                String?
+  approvedById               String?
+  approvedAt                 DateTime?
+  rejectedAt                 DateTime?
+  cancelledAt                DateTime?
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
+
+  clientOrganization         Organization          @relation("ClientOrganizationAuctions", fields: [clientOrganizationId], references: [id], onDelete: Restrict)
+  createdBy                  User                  @relation("AuctionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy                  User?                 @relation("AuctionUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  approvedBy                 User?                 @relation("AuctionApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  items                      AuctionItem[]
+  documents                  AuctionDocument[]
+  media                      AuctionMedia[]
+  participations             VendorParticipation[]
+  emdRecords                 EmdRecord[]
+  bids                       Bid[]
+  results                    AuctionResult[]
+  paymentRecords             PaymentRecord[]
+
+  @@index([auctionNumber])
+  @@index([status])
+  @@index([type])
+  @@index([visibility])
+  @@index([participationType])
+  @@index([clientOrganizationId])
+  @@index([scheduledStartAt])
+  @@index([scheduledEndAt])
+  @@index([status, scheduledStartAt])
+  @@index([status, scheduledEndAt])
+}
+
+model AuctionItem {
+  id             String            @id @default(cuid())
+  auctionId      String
+  lotNumber      String
+  name           String
+  description    String?
+  quantity       Decimal           @db.Decimal(18, 3)
+  unit           String
+  location       String?
+  specifications Json?
+  startingPrice  Decimal?          @db.Decimal(18, 2)
+  currency       String?
+  status         ItemStatus        @default(ACTIVE)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  auction        Auction           @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  documents      AuctionDocument[]
+  media          AuctionMedia[]
+  bids           Bid[]
+  results        AuctionResult[]
+
+  @@unique([auctionId, lotNumber])
+  @@index([auctionId])
+  @@index([status])
+}
+
+model AuctionDocument {
+  id            String           @id @default(cuid())
+  auctionId     String
+  auctionItemId String?
+  name          String
+  type          DocumentType
+  fileKey       String
+  fileName      String?
+  mimeType      String?
+  sizeInBytes   Int?
+  version       Int              @default(1)
+  requirement   RequirementState @default(OPTIONAL)
+  access        FileAccess       @default(PRIVATE)
+  uploadedById  String
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  auction       Auction          @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  auctionItem   AuctionItem?     @relation(fields: [auctionItemId], references: [id], onDelete: Cascade)
+  uploadedBy    User             @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([auctionId])
+  @@index([auctionItemId])
+  @@index([type])
+  @@index([auctionId, access])
+  @@index([uploadedById])
+}
+
+model AuctionMedia {
+  id            String       @id @default(cuid())
+  auctionId     String
+  auctionItemId String?
+  type          MediaType
+  fileKey       String
+  fileName      String?
+  mimeType      String?
+  sizeInBytes   Int?
+  access        FileAccess       @default(PRIVATE)
+  uploadedById  String
+  caption       String?
+  sortOrder     Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  auction       Auction      @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  auctionItem   AuctionItem? @relation(fields: [auctionItemId], references: [id], onDelete: Cascade)
+  uploadedBy    User         @relation("MediaUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([auctionId])
+  @@index([auctionItemId])
+  @@index([type])
+  @@index([auctionId, access])
+  @@index([uploadedById])
+}
+
+model VendorParticipation {
+  id                   String              @id @default(cuid())
+  auctionId            String
+  vendorOrganizationId String
+  status               ParticipationStatus @default(DRAFT)
+  eligibilityStatus    EligibilityStatus   @default(PENDING)
+  appliedAt            DateTime?
+  submittedAt          DateTime?
+  approvedAt           DateTime?
+  rejectedAt           DateTime?
+  reviewedById         String?
+  reviewNote           String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  auction              Auction             @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  vendorOrganization   Organization        @relation("VendorOrganizationParticipations", fields: [vendorOrganizationId], references: [id], onDelete: Restrict)
+  reviewedBy           User?               @relation("ParticipationReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  emdRecords           EmdRecord[]
+
+  @@unique([auctionId, vendorOrganizationId])
+  @@index([auctionId])
+  @@index([vendorOrganizationId])
+  @@index([status])
+  @@index([eligibilityStatus])
+}
+
+model EmdRecord {
+  id                    String               @id @default(cuid())
+  auctionId             String
+  vendorOrganizationId  String
+  participationId       String?
+  required              Boolean              @default(false)
+  amount                Decimal?             @db.Decimal(18, 2)
+  currency              String?
+  status                EmdStatus            @default(NOT_REQUIRED)
+  paymentReference      String?
+  submittedAt           DateTime?
+  verifiedAt            DateTime?
+  rejectedAt            DateTime?
+  reviewedById          String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  auction               Auction              @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  vendorOrganization    Organization         @relation(fields: [vendorOrganizationId], references: [id], onDelete: Restrict)
+  participation         VendorParticipation? @relation(fields: [participationId], references: [id], onDelete: SetNull)
+  reviewedBy            User?                @relation("EmdReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  paymentRecords        PaymentRecord[]
+
+  @@unique([auctionId, vendorOrganizationId])
+  @@index([auctionId])
+  @@index([vendorOrganizationId])
+  @@index([status])
+  @@index([paymentReference])
+}
+
+model Bid {
+  id                    String        @id @default(cuid())
+  auctionId             String
+  auctionItemId         String?
+  vendorOrganizationId  String
+  amount                Decimal?      @db.Decimal(18, 2)
+  rank                  Int?
+  bidValue              String?
+  sequenceNumber        Int
+  bidReference          String        @unique
+  status                BidStatus     @default(SUBMITTED)
+  submittedAt           DateTime      @default(now())
+  createdAt             DateTime      @default(now())
+
+  auction               Auction       @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  auctionItem           AuctionItem?  @relation(fields: [auctionItemId], references: [id], onDelete: SetNull)
+  vendorOrganization    Organization  @relation(fields: [vendorOrganizationId], references: [id], onDelete: Restrict)
+  winningResults        AuctionResult[] @relation("WinningBidResults")
+
+  @@unique([auctionId, sequenceNumber])
+  @@index([auctionId])
+  @@index([auctionItemId])
+  @@index([vendorOrganizationId])
+  @@index([auctionId, vendorOrganizationId])
+  @@index([auctionId, auctionItemId, submittedAt])
+  @@index([status])
+}
+
+model AuctionResult {
+  id                    String        @id @default(cuid())
+  auctionId             String
+  auctionItemId         String?
+  winningVendorId       String?
+  winningBidId          String?
+  status                ResultStatus  @default(PENDING)
+  declaredAt            DateTime?
+  declaredById          String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  auction               Auction       @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  auctionItem           AuctionItem?  @relation(fields: [auctionItemId], references: [id], onDelete: SetNull)
+  winningVendor         Organization? @relation("WinningVendorResults", fields: [winningVendorId], references: [id], onDelete: SetNull)
+  winningBid            Bid?          @relation("WinningBidResults", fields: [winningBidId], references: [id], onDelete: SetNull)
+  declaredBy            User?         @relation("ResultDeclaredBy", fields: [declaredById], references: [id], onDelete: SetNull)
+
+  @@unique([auctionId, auctionItemId])
+  @@index([auctionId])
+  @@index([auctionItemId])
+  @@index([winningVendorId])
+  @@index([winningBidId])
+  @@index([status])
+}
+
+model PaymentRecord {
+  id                    String            @id @default(cuid())
+  type                  PaymentRecordType
+  status                PaymentStatus     @default(PENDING)
+  amount                Decimal?          @db.Decimal(18, 2)
+  currency              String?
+  auctionId             String?
+  vendorOrganizationId  String?
+  emdRecordId           String?
+  referenceIdentifier   String?
+  providerPlaceholder   String?
+  recordedAt            DateTime          @default(now())
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  auction               Auction?          @relation(fields: [auctionId], references: [id], onDelete: SetNull)
+  vendorOrganization    Organization?     @relation(fields: [vendorOrganizationId], references: [id], onDelete: SetNull)
+  emdRecord             EmdRecord?        @relation(fields: [emdRecordId], references: [id], onDelete: SetNull)
+
+  @@index([type])
+  @@index([status])
+  @@index([auctionId])
+  @@index([vendorOrganizationId])
+  @@index([emdRecordId])
+  @@index([referenceIdentifier])
+}
+
+model Notification {
+  id                String           @id @default(cuid())
+  userId            String
+  type              NotificationType
+  title             String
+  message           String
+  isRead            Boolean          @default(false)
+  relatedEntityType String?
+  relatedEntityId   String?
+  createdAt         DateTime         @default(now())
+  readAt            DateTime?
+
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([isRead])
+  @@index([relatedEntityType, relatedEntityId])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id             String          @id @default(cuid())
+  actorUserId    String?
+  action         String
+  entityType     AuditEntityType
+  entityId       String
+  oldValue       Json?
+  newValue       Json?
+  ipAddress      String?
+  deviceMetadata String?
+  createdAt      DateTime        @default(now())
+
+  actor          User?           @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

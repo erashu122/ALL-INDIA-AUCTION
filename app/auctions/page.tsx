@@ -1,0 +1,11 @@
+import Link from "next/link";
+
+import { Badge, Card, EmptyState, Input, Select } from "@/components/ui";
+import { getPublicAuctions } from "@/services/auction-publishing";
+
+export default async function AuctionsPage({ searchParams }: { searchParams: Promise<{ q?: string; type?: string }> }) {
+  const params = await searchParams;
+  const type = params.type === "FORWARD" || params.type === "REVERSE" || params.type === "RANK" ? params.type : undefined;
+  const auctions = await getPublicAuctions({ query: params.q, type });
+  return <section className="mx-auto max-w-6xl space-y-6 px-4 py-10"><div><h1 className="text-3xl font-semibold">Published auctions</h1><p className="mt-2 text-sm text-[var(--color-text-muted)]">Browse public auction opportunities. Participation will be introduced in a later release.</p></div><form className="grid gap-3 md:grid-cols-[1fr_12rem_auto]"><Input defaultValue={params.q} name="q" placeholder="Search auction number or title" /><Select defaultValue={type ?? ""} name="type"><option value="">All auction types</option><option value="FORWARD">Forward</option><option value="REVERSE">Reverse</option><option value="RANK">Rank-based</option></Select><button className="h-10 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 text-sm font-medium text-white" type="submit">Search</button></form>{auctions.length ? <div className="grid gap-4 md:grid-cols-2">{auctions.map((auction) => <Card key={auction.id}><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-[var(--color-text-muted)]">{auction.auctionNumber}</p><h2 className="mt-1 text-lg font-semibold"><Link className="hover:underline" href={`/auctions/${auction.id}`}>{auction.title}</Link></h2></div><Badge variant="success">{auction.type}</Badge></div><dl className="mt-4 grid gap-2 text-sm text-[var(--color-text-muted)]"><div><dt className="inline">Starts: </dt><dd className="inline">{auction.scheduledStartAt.toLocaleString()}</dd></div><div><dt className="inline">Ends: </dt><dd className="inline">{auction.scheduledEndAt.toLocaleString()}</dd></div><div><dt className="inline">Status: </dt><dd className="inline">{auction.status}</dd></div></dl></Card>)}</div> : <EmptyState description="Try a different search or return when a public auction is published." title="No public auctions found" />}</section>;
+}
