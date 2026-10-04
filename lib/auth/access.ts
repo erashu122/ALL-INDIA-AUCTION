@@ -3,10 +3,18 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth/session";
 import type { AuthenticatedUser } from "@/types/auth";
-import { canAccessPortal, getPortalHome, type PortalKey } from "./portal-policy";
+import {
+  canAccessPortal,
+  getPortalHome,
+  type PortalKey,
+} from "./portal-policy";
 import type { Role } from "@/types/permissions";
 
-export { canAccessPortal, getPortalHome, type PortalKey } from "./portal-policy";
+export {
+  canAccessPortal,
+  getPortalHome,
+  type PortalKey,
+} from "./portal-policy";
 
 export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
   const session = await getSession();
@@ -24,6 +32,7 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> 
       role: true,
       status: true,
       passwordChangedAt: true,
+      mustChangePassword: true,
       organizations: {
         where: { isPrimary: true },
         take: 1,
@@ -57,6 +66,7 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> 
     role: user.role,
     organizationName:
       primaryOrganization?.displayName ?? primaryOrganization?.legalName,
+    mustChangePassword: user.mustChangePassword,
   };
 }
 
@@ -80,7 +90,9 @@ export async function requireAuthenticatedUser(): Promise<AuthenticatedUser> {
   return user;
 }
 
-export async function requireRole(roles: readonly Role[]): Promise<AuthenticatedUser> {
+export async function requireRole(
+  roles: readonly Role[],
+): Promise<AuthenticatedUser> {
   const user = await requireAuthenticatedUser();
 
   if (!roles.includes(user.role)) {

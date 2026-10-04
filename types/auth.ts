@@ -6,6 +6,7 @@ export type AuthenticatedUser = {
   email: string;
   role: Role;
   organizationName?: string;
+  mustChangePassword?: boolean;
 };
 
 export type SessionPayload = AuthenticatedUser & {

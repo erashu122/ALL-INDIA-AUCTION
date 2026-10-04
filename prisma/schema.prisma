@@ -193,9 +193,10 @@ model User {
   emailVerifiedAt DateTime?
   termsAcceptedAt DateTime?
   authReference    String?            @unique
-  passwordHash     String?
-  passwordChangedAt DateTime?
-  lastLoginAt      DateTime?
+  passwordHash       String?
+  passwordChangedAt  DateTime?
+  mustChangePassword Boolean  @default(false)
+  lastLoginAt        DateTime?
   role             UserRole
   status           UserStatus         @default(ACTIVE)
   createdAt        DateTime           @default(now())

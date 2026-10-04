@@ -172,8 +172,9 @@ export async function resetVendorPasswordAction(
           id: primaryUser.id,
         },
         data: {
-          passwordHash,
-          passwordChangedAt: new Date(),
+            passwordHash,
+            passwordChangedAt: new Date(),
+            mustChangePassword: true,
         },
       });
 

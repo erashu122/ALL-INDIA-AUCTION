@@ -160,9 +160,10 @@ export async function resetPasswordAction(
         id: user.id,
       },
       data: {
-        passwordHash,
-        passwordChangedAt: new Date(),
-      },
+            passwordHash,
+            passwordChangedAt: new Date(),
+            mustChangePassword: false,
+            },
     });
 
     cookieStore.delete("password_reset_token");

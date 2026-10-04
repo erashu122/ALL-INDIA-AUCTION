@@ -46,6 +46,7 @@ export async function signInAction(
         role: true,
         status: true,
         passwordHash: true,
+        mustChangePassword: true,
         organizations: {
           where: { isPrimary: true },
           take: 1,
@@ -75,7 +76,8 @@ export async function signInAction(
           name: user.name,
           email: user.email,
           role: user.role,
-          organizationName: organization?.displayName ?? organization?.legalName,
+          organizationName:
+            organization?.displayName ?? organization?.legalName,
         },
         remember,
       ),
@@ -84,10 +86,18 @@ export async function signInAction(
         data: { lastLoginAt: new Date() },
       }),
     ]);
-    redirectPath = getPortalHome(user.role);
+
+    redirectPath = user.mustChangePassword
+      ? "/change-password"
+      : getPortalHome(user.role);
   } catch (error) {
-    if (error instanceof Error && error.message.includes("AUTH_SESSION_SECRET")) {
-      return { error: "Sign in is unavailable until authentication is configured." };
+    if (
+      error instanceof Error &&
+      error.message.includes("AUTH_SESSION_SECRET")
+    ) {
+      return {
+        error: "Sign in is unavailable until authentication is configured.",
+      };
     }
 
     return { error: "Unable to sign in right now. Please try again." };
